@@ -1,8 +1,6 @@
 # =====================================================================
-# 1. 套件自動安裝與環境初始化
+# 1. 環境初始化與套件載入
 # =====================================================================
-!pip install -q google-genai notion-client nest_asyncio
-
 import os
 import sys
 import json
@@ -16,7 +14,6 @@ from typing import Dict, Any, Tuple, List
 from google import genai
 from google.genai import types
 from notion_client import AsyncClient
-from google.colab import userdata
 
 nest_asyncio.apply()
 
@@ -30,25 +27,20 @@ logger = logging.getLogger("GEMEngineV28_5")
 STATE_FILE = "gem_linucb_state.json"
 
 # =====================================================================
-# 🔑 從 Colab Secret 載入金鑰與資料庫 ID
+# 🔑 從系統環境變數（GitHub Secrets）載入金鑰
 # =====================================================================
-try:
-    os.environ["GEMINI_API_KEY"] = userdata.get('GEMINI_API_KEY')
-except Exception as e:
-    logger.warning(f"Secret 面板未找到 GEMINI_API_KEY: {e}")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
+NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "3d59ce14afea80f29018cd91985e0af2")
 
-try:
-    os.environ["NOTION_TOKEN"] = userdata.get('NOTION_TOKEN')
-except Exception as e:
-    logger.warning(f"Secret 面板未找到 NOTION_TOKEN: {e}")
-
-os.environ["NOTION_DATABASE_ID"] = "3d59ce14afea80f29018cd91985e0af2"
+os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+os.environ["NOTION_TOKEN"] = NOTION_TOKEN
+os.environ["NOTION_DATABASE_ID"] = NOTION_DATABASE_ID
 
 # =====================================================================
 # 2. 前瞻趨勢預測與 KPI 試算模組
 # =====================================================================
 class TrendPredictionEngine:
-    """知幾者動之微：利用歷史數據，預測未來 2 小時變化"""
     def predict_future_trends(self, historical_crowd: List[float], historical_temp: List[float]) -> Dict[str, Any]:
         x = np.array([1, 2, 3, 4, 5])
         crowd_poly = np.polyfit(x, np.array(historical_crowd[-5:]), 1)
@@ -63,7 +55,6 @@ class TrendPredictionEngine:
         }
 
 class SuccessRateKPICalculator:
-    """自動計算用於提案與審查的核心 KPI 指標"""
     @staticmethod
     def compute_proposal_kpis(crowd_density: float, saved_co2_kg: float, emergency_alert: bool) -> Dict[str, Any]:
         crowd_relief_pct = round(min(35.0, crowd_density * 40.0), 1)
@@ -204,7 +195,7 @@ class MassLineSimulationEngine:
         return penalty, weak_points
 
 # =====================================================================
-# 5. Gemini 專家生成器 (更新為最新 gemini-3.6-flash 模型)
+# 5. Gemini 專家生成器 (多模型備援)
 # =====================================================================
 class GeminiExpertSynthesizer:
     def __init__(self, api_key: str):
@@ -212,27 +203,10 @@ class GeminiExpertSynthesizer:
         self.client = genai.Client(api_key=api_key) if api_key and not api_key.startswith("YOUR_") else None
         self._working_model = "gemini-3.6-flash"
 
-    def _get_candidate_models(self) -> List[str]:
-        default_candidates = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
-        if not self.client:
-            return default_candidates
-        discovered = []
-        try:
-            for m in self.client.models.list():
-                m_name = getattr(m, 'name', '').replace('models/', '')
-                if 'flash' in m_name:
-                    discovered.append(m_name)
-        except Exception as e:
-            logger.warning(f"自動偵測模型清單失敗: {e}")
-        
-        all_models = ["gemini-3.6-flash"] + ([self._working_model] if self._working_model else []) + discovered + default_candidates
-        seen = set()
-        return [m for m in all_models if m and not (m in seen or seen.add(m))]
-
     async def _call_generate(self, prompt: str, temp: float = 0.3) -> str:
         if not self.client:
             return ""
-        models_to_try = self._get_candidate_models()
+        models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
         for model_name in models_to_try:
             try:
                 res = await asyncio.to_thread(
@@ -242,10 +216,8 @@ class GeminiExpertSynthesizer:
                     config=types.GenerateContentConfig(temperature=temp)
                 )
                 if res and hasattr(res, 'text') and res.text:
-                    self._working_model = model_name
                     return res.text.strip()
-            except Exception as e:
-                logger.warning(f"嘗試模型 '{model_name}' 失敗: {e}，切換下一個模型...")
+            except Exception:
                 continue
         return ""
 
@@ -256,9 +228,7 @@ class GeminiExpertSynthesizer:
             f"主要矛盾「{contradiction}」及戰術「{tactic}」，寫一段 100 字內具哲學高度的『專家戰略導言』。"
         )
         result = await self._call_generate(prompt, temp=0.3)
-        if result:
-            return result
-        return f"【GEM 專家導言】針對 {contradiction}，即時啟動 {tactic} 進行戰術防護與人流引導。"
+        return result or f"【GEM 專家導言】針對 {contradiction}，即時啟動 {tactic} 進行戰術防護與人流引導。"
 
     async def judge_reward(self, payload: GEMIngestionPayload, tactic: str) -> float:
         prompt = f"針對戰術 '{tactic}' 在風險={payload.r_hazard}、擁擠度={payload.earth.crowd_density} 下的評分，僅輸出一個 0.0 到 10.0 的數字："
@@ -273,10 +243,7 @@ class GeminiExpertSynthesizer:
     async def generate_innovative_tactic(self, contradiction: str) -> str:
         prompt = f"針對矛盾「{contradiction}」，請構想一個 8 字以內全新戰術名稱，僅輸出名稱："
         result = await self._call_generate(prompt, temp=0.5)
-        if result:
-            clean = result.replace(" ", "_").upper()
-            return clean if clean else "T6_DYNAMIC_RECOVERY_DISPATCH"
-        return "T6_DYNAMIC_RECOVERY_DISPATCH"
+        return result.replace(" ", "_").upper() if result else "T6_DYNAMIC_RECOVERY_DISPATCH"
 
 # =====================================================================
 # 6. Neural-Linear Contextual RL 核心引擎
@@ -303,7 +270,6 @@ class NeuralLinearTacticalEngine:
                 self.tactics = state.get("tactics", self.tactics)
                 self.A = {t: np.array(state["A"][t]) for t in self.tactics}
                 self.b = {t: np.array(state["b"][t]) for t in self.tactics}
-                logger.info("成功喚醒 GEM LinUCB 歷史記憶與動態戰術庫。")
                 return
             except Exception:
                 pass
@@ -328,14 +294,6 @@ class NeuralLinearTacticalEngine:
         i2 = float(np.tanh(heat_norm * c * 2.0))
         return np.array([[r], [c], [heat_norm], [payload.outdoor.ebike_battery_level], [delay_norm], [i1], [i2]], dtype=np.float64)
 
-    def register_new_tactic(self, tactic_name: str):
-        if tactic_name not in self.tactics:
-            self.tactics.append(tactic_name)
-            self.A[tactic_name] = np.identity(self.d)
-            self.b[tactic_name] = np.zeros((self.d, 1))
-            logger.info(f"✨ [戰術庫自動擴充] 解鎖全新專家戰術: {tactic_name}")
-            self._save_state()
-
     async def select_tactical_action(self, payload: GEMIngestionPayload, synthesizer: GeminiExpertSynthesizer, contradiction: str) -> Tuple[str, str, Dict[str, str]]:
         if payload.restroom.emergency_alert:
             return "🚨 [硬護欄] AI 秒級救援預警", self.tactics[0], {"救援": "醫療通道開啟"}
@@ -352,12 +310,6 @@ class NeuralLinearTacticalEngine:
             p_t[t] = mean_val + self.alpha * np.sqrt(max(0.0, var_val))
 
         best_tactic = max(p_t, key=p_t.get)
-
-        if p_t[best_tactic] < 0.25 and len(self.tactics) < 10:
-            new_tactic = await synthesizer.generate_innovative_tactic(contradiction)
-            self.register_new_tactic(new_tactic)
-            best_tactic = new_tactic
-
         penalty, weak_points = MassLineSimulationEngine.evaluate_weak_points(best_tactic, payload)
         return f"🎯 [Neural-RL 專家決策] {best_tactic}", best_tactic, weak_points
 
@@ -368,7 +320,7 @@ class NeuralLinearTacticalEngine:
         self._save_state()
 
 # =====================================================================
-# 7. 辯證引擎與 Notion Async Client
+# 7. 辯證引擎與 Notion 同步服務
 # =====================================================================
 class GlobalDialecticalEngine:
     def identify_primary_contradiction(self, payload: GEMIngestionPayload) -> str:
@@ -388,7 +340,7 @@ class NotionAsyncSyncService:
 
     async def push_snapshot(self, payload: GEMIngestionPayload, contradiction: str, ai_narrative: str, tactic: str, score: float = 99.2) -> bool:
         if not self.client or not self.database_id:
-            logger.warning("⚠️ [Notion] 未偵測到實體 Integration Token，開啟 90/10 靜態備援防衛機制。")
+            logger.warning("⚠️ [Notion] 未偵測到 Integration Token。")
             return False
 
         trend_label = "狀態穩定" if payload.r_hazard < 0.75 else "⚠️ 警戒避險"
@@ -414,7 +366,7 @@ class NotionAsyncSyncService:
                 {
                     "object": "block",
                     "type": "paragraph",
-                    "paragraph": {"rich_text": [{"text": {"content": f"【前瞻趨勢 2h 擁擠度預測】: {payload.future_trend.get('predicted_crowd_2h', 0)*100:.0f}% (趨勢: {payload.future_trend.get('crowd_trend', '平穩')})\n【企劃 KPI】人流舒緩率: {payload.kpi_metrics.get('crowd_relief_pct')} | 年化減碳: {payload.kpi_metrics.get('annual_co2_saved_tons')}\n\n{ai_narrative[:1600]}"}}]}
+                    "paragraph": {"rich_text": [{"text": {"content": f"【前瞻趨勢 2h 擁擠度預測】: {payload.future_trend.get('predicted_crowd_2h', 0)*100:.0f}%\n【企劃 KPI】人流舒緩率: {payload.kpi_metrics.get('crowd_relief_pct')} | 年化減碳: {payload.kpi_metrics.get('annual_co2_saved_tons')}\n\n{ai_narrative[:1600]}"}}]}
                 }
             ]
         }
@@ -427,7 +379,7 @@ class NotionAsyncSyncService:
             return False
 
 # =====================================================================
-# 8. 主控程式與執行進入點
+# 8. 主控程式與執行入口
 # =====================================================================
 class GEMEngineV28_5Master:
     def __init__(self):
@@ -442,28 +394,14 @@ class GEMEngineV28_5Master:
         self.notion_sync = NotionAsyncSyncService(self.notion_token, self.notion_db_id)
 
     async def run_expert_loop(self):
-        logger.info("=== GEM Engine v28.5 Ultimate Master 啟動 ===")
         payload = self.ingestion.fetch_live_payload()
-        logger.info(f"📡 [感知層] 時間: {payload.timestamp} | 體感: {payload.global_region.sea_heat_index_celsius}°C | 風險 R: {payload.r_hazard}")
-        logger.info(f"🔮 [前瞻預測] 未來 2h 擁擠度預測: {payload.future_trend['predicted_crowd_2h']*100:.0f}% ({payload.future_trend['crowd_trend']})")
-        logger.info(f"📊 [v5s 5維向量] {payload.v5s_vector}")
-
         contradiction = self.dialectical.identify_primary_contradiction(payload)
-        logger.info(f"🧠 [辯證層] 主要矛盾: {contradiction}")
-
         tactic_desc, chosen_tactic, weak_points = await self.neural_rl.select_tactical_action(payload, self.synthesizer, contradiction)
-        logger.info(f"🎯 [決策層] {tactic_desc}")
-        logger.info(f"🛡️ [紅隊對抗] 弱點評估: {weak_points}")
-
         ai_narrative = await self.synthesizer.synthesize_narrative(payload, contradiction, chosen_tactic)
         reward_score = await self.synthesizer.judge_reward(payload, chosen_tactic)
-        logger.info(f"⚖️ [專家評審] LLM Reward: {reward_score} / 10.0")
-        logger.info(f"📝 戰略導言: {ai_narrative}")
 
         self.neural_rl.update_llm_judge_feedback(payload, chosen_tactic, reward_score)
         await self.notion_sync.push_snapshot(payload, contradiction, ai_narrative, chosen_tactic)
-        logger.info("=== GEM Engine v28.5 執行完成 ===")
 
-# 直接啟動執行
-engine = GEMEngineV28_5Master()
-await engine.run_expert_loop()
+if __name__ == "__main__":
+    asyncio.run(GEMEngineV28_5Master().run_expert_loop())
