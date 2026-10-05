@@ -1,2 +1,6 @@
-requests==2.31.0
-pydantic==2.4.2
+folium
+pydantic
+requests
+matplotlib
+numpy
+ipython
