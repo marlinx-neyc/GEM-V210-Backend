@@ -313,7 +313,7 @@ class ZkSNARKAntiGreenwashingAgent:
     pi_a = f"0xSNARK_A_{hashlib.sha256((witness_hash + 'A').encode()).hexdigest()[:32]}"
     pi_b = f"0xSNARK_B_{hashlib.sha256((pub_hash + 'B').encode()).hexdigest()[:32]}"
     pi_c = f"0xSNARK_C_{hashlib.sha256((witness_hash + pub_hash + 'C').encode()).hexdigest()[:32]}"
-    blockchain_merkle_root = f"0xMK1100_{hashlib.sha3_256((pi_a + pi_b + pi_c).encode()).hexdigest()[:32]}"
+    blockchain_merkle_root = f"0xMK1100_{hashlib.sha256((pi_a + pi_b + pi_c).encode()).hexdigest()[:32]}"
 
     return {
         "zk_proof_standard": "Groth16_BN254_AntiGreenwashing_v1100",
@@ -976,7 +976,7 @@ class GEMv1100MasterOrchestrator:
 
 
 # ==============================================================================
-# 11. 驗證執行主函式 (支援 Colab 頂層 await)
+# 11. 驗證執行主函式
 # ==============================================================================
 async def main():
   print("========================================================================")
@@ -1040,6 +1040,6 @@ async def main():
   )
 
 
-# 直接執行
+# 標準程式主入口點
 if __name__ == "__main__":
     asyncio.run(main())
