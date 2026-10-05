@@ -17,7 +17,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install google-genai notion-client nest_asyncio numpy
+          python -m pip install --upgrade pip
+          pip install folium pydantic requests matplotlib ipython google-genai notion-client nest_asyncio numpy
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run GEM Engine Sync
         env:
