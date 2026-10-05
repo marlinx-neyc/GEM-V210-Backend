@@ -1041,4 +1041,5 @@ async def main():
 
 
 # 直接執行
-await main()
+if __name__ == "__main__":
+    asyncio.run(main())
