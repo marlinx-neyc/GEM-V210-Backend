@@ -2,6 +2,9 @@ name: GEM-V210 Auto Sync
 
 on:
   workflow_dispatch:
+  schedule:
+    # 每 6 小時自動執行一次 (可依需求自行調整或刪除)
+    - cron: '0 */6 * * *'
 
 jobs:
   run-sync:
@@ -26,5 +29,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
+          TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
+          TGOS_API_KEY: ${{ secrets.TGOS_API_KEY }}
+          ESTAT_API_KEY: ${{ secrets.ESTAT_API_KEY }}
+          KTO_DATA_LAB_KEY: ${{ secrets.KTO_DATA_LAB_KEY }}
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
         run: |
           python main.py
