@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-GEM Engine Specification v1100.0 Sovereign Ultra-Brain Edition
+GEM Engine Specification v1100.0 Sovereign Ultra-Brain Edition (Master Unified)
 (Master Integration: 16D Northeast Coast State Tensor + Kan-Li Phase Operator +
  Groth16 zk-SNARKs Audit + Sherman-Morrison SVD Auto-Healing + Online RL Self-Trainer +
  Notion DB Hub Dynamic Schema Self-Healing + Gemini Multi-Key Synthesizer +
@@ -8,6 +8,7 @@ GEM Engine Specification v1100.0 Sovereign Ultra-Brain Edition
  TGOS Geocoding, Japan e-Stat, Korea DX & Taiwan TDX API Ingestion Adapters)
 """
 from __future__ import annotations
+
 import asyncio
 import base64
 import hashlib
@@ -21,10 +22,16 @@ from typing import Any, Dict, List, Tuple
 
 import folium
 from folium.plugins import AntPath
-from IPython.display import HTML, display
 import numpy as np
 from pydantic import BaseModel, Field
 import requests
+
+# 嘗試導入 IPython display 模組 (支援 Colab / Jupyter)
+try:
+    from IPython.display import HTML, display
+    HAS_IPYTHON = True
+except ImportError:
+    HAS_IPYTHON = False
 
 # ==============================================================================
 # 1. 系統日誌與 Colab / 環境變數初始化
@@ -158,7 +165,6 @@ class TGOSDataIngestionAdapter:
             logger.info(f"✅ [TGOS/NLSC 空間定位] 成功取得草嶺古道預警樞紐坐標: {address} -> (24.9961, 121.7951)")
             return 24.9961, 121.7951
 
-        # 使用開放 OSM Nominatim 作為標準備援 Geocoding
         try:
             url = "https://nominatim.openstreetmap.org/search"
             params = {"q": address, "format": "json", "limit": 1}
@@ -521,7 +527,7 @@ class ShermanMorrisonLinUCB16DEngine:
 
 
 # ==============================================================================
-# 11. 地圖視覺化 (介接內政部 TGOS / NLSC 台灣通用電子地圖 WMTS 圖磚)
+# 11. 地圖視覺化 (介接內政部 TGOS / NLSC WMTS 圖磚)
 # ==============================================================================
 class SovereignMapVisualizer:
     NODE_COORDINATES = {
@@ -541,7 +547,6 @@ class SovereignMapVisualizer:
         mapbox_token = os.getenv("MAPBOX_TOKEN", "")
 
         if use_tgos_tile:
-            # 直接介接內政部 TGOS MAP API / NLSC 台灣通用電子地圖 WMTS 圖磚
             tiles = "https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}"
             attr = "內政部 國土測繪中心 (NLSC / TGOS MAP API)"
             logger.info("🗺️ [TGOS 地圖圖台] 成功載入內政部台灣通用電子地圖圖磚 (WMTS)")
@@ -555,7 +560,10 @@ class SovereignMapVisualizer:
         m = folium.Map(location=[24.88, 121.82], zoom_start=11, tiles=tiles, attr=attr)
         for node_id, coords in cls.NODE_COORDINATES.items():
             color = "#f43f5e" if node_id == "Node_Toucheng_Coast" else ("#f59e0b" if "Springs" in node_id else "#10b981")
-            folium.CircleMarker(location=coords, radius=10 if color == "#f43f5e" else 7, tooltip=node_id, color=color, fill=True, fill_color=color, fill_opacity=0.85).add_to(m)
+            folium.CircleMarker(
+                location=coords, radius=10 if color == "#f43f5e" else 7,
+                tooltip=node_id, color=color, fill=True, fill_color=color, fill_opacity=0.85
+            ).add_to(m)
 
         src = cls.NODE_COORDINATES["Node_Toucheng_Coast"]
         tgt1 = cls.NODE_COORDINATES["Node_Jiaoxi_Springs"]
@@ -563,161 +571,6 @@ class SovereignMapVisualizer:
         AntPath(locations=[src, tgt1], delay=1000, weight=5, color="#38bdf8", pulse_color="#ffffff").add_to(m)
         AntPath(locations=[src, tgt2], delay=1200, weight=4, color="#4ade80", pulse_color="#ffffff").add_to(m)
         return m
-
-
-class InColabCanvasDashboardRenderer:
-    """直接在 Colab/Web 內嵌渲染 60 FPS Cyberpunk 風格動態 Canvas 戰情室"""
-    @classmethod
-    def render_in_colab(cls, result_data: dict):
-        data_json = json.dumps(result_data, ensure_ascii=False, cls=NumpyJSONEncoder)
-
-        html_code = f"""
-        <div id="gem-dashboard-root" style="width: 100%; height: 620px; background: #020617; border-radius: 12px; overflow: hidden; font-family: sans-serif; position: relative; border: 1px solid #334155;">
-            <div style="height: 50px; background: rgba(15, 23, 42, 0.95); padding: 0 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #38bdf8;">
-                <div style="color: #38bdf8; font-weight: bold; font-size: 16px;">🌐 GEM Engine v1100.0 超智腦 16D 動態戰情室 (MOI TGOS MAP Integrated)</div>
-                <div>
-                    <span style="background: #0369a1; color: #e0f2fe; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">MCDM 得分: {result_data.get('national_audit_evaluation', {}).get('final_score', 98.8)}</span>
-                    <span style="background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; color: #4ade80; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; margin-left: 8px;">zk-SNARKs Verified</span>
-                </div>
-            </div>
-
-            <div style="position: relative; width: 100%; height: calc(100% - 50px);">
-                <canvas id="meshCanvasColab" style="width: 100%; height: 100%; display: block;"></canvas>
-
-                <div style="position: absolute; top: 15px; left: 15px; width: 280px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); border: 1px solid #334155; border-radius: 8px; padding: 12px; color: #f8fafc; font-size: 12px;">
-                    <div style="font-weight: bold; color: #38bdf8; margin-bottom: 6px;">⚡ 16D 戰術與相變狀態</div>
-                    <div style="background: rgba(244, 63, 94, 0.15); border-left: 3px solid #f43f5e; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
-                        <div style="font-weight: bold; color: #f43f5e;">{result_data.get('selected_tactic')}</div>
-                        <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;">{result_data.get('kan_li_reasoning')}</div>
-                    </div>
-                    <div style="font-weight: bold; color: #94a3b8; margin-bottom: 4px;">📊 關鍵數據指標</div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>CWA 浪高 ($v_0$)</span><span style="color:#38bdf8;">{result_data.get('northeast_coast_16d_summary', {}).get('cwa_wave_height_m')} m</span></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>淡蘭泥濘度 ($v_1$)</span><span style="color:#38bdf8;">{result_data.get('northeast_coast_16d_summary', {}).get('danlan_mud_index')}</span></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>TDX 交通延誤 ($v_3$)</span><span style="color:#38bdf8;">{result_data.get('northeast_coast_16d_summary', {}).get('tdx_transit_congestion_v3', '0.65')}</span></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Taiwan PASS ($v_{{15}}$)</span><span style="color:#38bdf8;">{result_data.get('northeast_coast_16d_summary', {}).get('taiwan_pass_v15')}</span></div>
-                </div>
-
-                <div style="position: absolute; top: 15px; right: 15px; width: 320px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); border: 1px solid #334155; border-radius: 8px; padding: 12px; color: #f8fafc; font-size: 12px;">
-                    <div style="font-weight: bold; color: #f59e0b; margin-bottom: 6px;">🎯 乾道易知戰略導言</div>
-                    <div style="background: rgba(30, 41, 59, 0.8); padding: 8px; border-radius: 4px; line-height: 1.5; margin-bottom: 10px;">
-                        {result_data.get('llm_expert_narrative')}
-                    </div>
-                    <div style="font-weight: bold; color: #10b981; margin-bottom: 4px;">⛓️ zk-SNARKs Merkle Anchor</div>
-                    <div style="font-family: monospace; font-size: 10px; color: #94a3b8; word-break: break-all;">
-                        {result_data.get('zk_snark_anti_greenwashing_proof', {}).get('merkle_root_anchor')}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            (function() {{
-                const rawData = {data_json};
-                const nodes = [
-                    {{ id: "Node_Ruifang_Jiufen", name: "瑞芳九份山城樞紐", x: 0.65, y: 0.18, color: "#f43f5e" }},
-                    {{ id: "Node_Gongliao_Fulong", name: "貢寮福隆海洋樞紐", x: 0.82, y: 0.28, color: "#10b981" }},
-                    {{ id: "Node_Shuangxi_Danlan", name: "雙溪平溪淡蘭古道樞紐", x: 0.52, y: 0.32, color: "#10b981" }},
-                    {{ id: "Node_Pinglin_Tea", name: "坪林北宜茶鄉樞紐", x: 0.35, y: 0.42, color: "#10b981" }},
-                    {{ id: "Node_Toucheng_Coast", name: "頭城外澳海洋樞紐", x: 0.62, y: 0.52, color: "#f43f5e" }},
-                    {{ id: "Node_Jiaoxi_Springs", name: "礁溪溫泉休閒樞紐", x: 0.48, y: 0.64, color: "#f59e0b" }},
-                    {{ id: "Node_Zhuangwei_Dune", name: "壯圍沙丘生態樞紐", x: 0.58, y: 0.72, color: "#10b981" }},
-                    {{ id: "Node_Luodong_Market", name: "羅東商圈門戶樞紐", x: 0.42, y: 0.82, color: "#10b981" }},
-                    {{ id: "Node_Suao_ColdSpring", name: "蘇澳冷泉海洋樞紐", x: 0.68, y: 0.90, color: "#10b981" }}
-                ];
-
-                const connections = [
-                    {{ from: 4, to: 5, color: "#38bdf8" }},
-                    {{ from: 4, to: 8, color: "#4ade80" }},
-                    {{ from: 0, to: 2, color: "#38bdf8" }},
-                    {{ from: 2, to: 3, color: "#818cf8" }}
-                ];
-
-                let particles = [];
-                for (let i = 0; i < 30; i++) {{
-                    particles.push({{
-                        connIndex: i % connections.length,
-                        progress: Math.random(),
-                        speed: 0.004 + Math.random() * 0.004
-                    }});
-                }}
-
-                const canvas = document.getElementById("meshCanvasColab");
-                const ctx = canvas.getContext("2d");
-
-                function resize() {{
-                    canvas.width = canvas.parentElement.clientWidth;
-                    canvas.height = canvas.parentElement.clientHeight;
-                }}
-                resize();
-                window.addEventListener("resize", resize);
-
-                function animate(timestamp) {{
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    connections.forEach(conn => {{
-                        const p1 = nodes[conn.from];
-                        const p2 = nodes[conn.to];
-                        ctx.beginPath();
-                        ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
-                        ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
-                        ctx.strokeStyle = "rgba(51, 65, 85, 0.6)";
-                        ctx.lineWidth = 2;
-                        ctx.setLineDash([4, 4]);
-                        ctx.stroke();
-                        ctx.setLineDash([]);
-                    }});
-
-                    particles.forEach(p => {{
-                        p.progress += p.speed;
-                        if (p.progress > 1) p.progress = 0;
-                        const conn = connections[p.connIndex];
-                        const p1 = nodes[conn.from];
-                        const p2 = nodes[conn.to];
-                        const x = (p1.x + (p2.x - p1.x) * p.progress) * canvas.width;
-                        const y = (p1.y + (p2.y - p1.y) * p.progress) * canvas.height;
-
-                        ctx.beginPath();
-                        ctx.arc(x, y, 3, 0, Math.PI * 2);
-                        ctx.fillStyle = conn.color;
-                        ctx.shadowColor = conn.color;
-                        ctx.shadowBlur = 8;
-                        ctx.fill();
-                        ctx.shadowBlur = 0;
-                    }});
-
-                    nodes.forEach(node => {{
-                        const nx = node.x * canvas.width;
-                        const ny = node.y * canvas.height;
-                        const pulse = Math.sin(timestamp * 0.003 + node.x * 10) * 3;
-
-                        ctx.beginPath();
-                        ctx.arc(nx, ny, 10 + pulse, 0, Math.PI * 2);
-                        ctx.fillStyle = node.color + "33";
-                        ctx.fill();
-
-                        ctx.beginPath();
-                        ctx.arc(nx, ny, 6, 0, Math.PI * 2);
-                        ctx.fillStyle = node.color;
-                        ctx.shadowColor = node.color;
-                        ctx.shadowBlur = 10;
-                        ctx.fill();
-                        ctx.shadowBlur = 0;
-
-                        ctx.font = "11px sans-serif";
-                        ctx.fillStyle = "#94a3b8";
-                        ctx.fillText(node.name, nx + 12, ny + 4);
-                    }});
-
-                    requestAnimationFrame(animate);
-                }}
-                requestAnimationFrame(animate);
-            }})();
-        </script>
-        """
-        try:
-            display(HTML(html_code))
-        except Exception:
-            pass
 
 
 # ==============================================================================
@@ -738,11 +591,9 @@ class GEMv1100MasterOrchestrator:
     async def execute_v1100_master_cycle(self, snapshot: ScenicSpotEnvironmentTensor16D, skip_llm: bool = False) -> Dict[str, Any]:
         load_colab_secrets_if_available()
 
-        # 1. 注入 TGOS 地理空間坐標校正
         toucheng_lat, toucheng_lng = TGOSDataIngestionAdapter.geocode_address("宜蘭縣頭城鎮濱海路二段6號")
         SovereignMapVisualizer.NODE_COORDINATES["Node_Toucheng_Coast"] = [toucheng_lat, toucheng_lng]
 
-        # 2. 注入台灣 TDX 實時數據 與 日韓 DX 數據
         snapshot.tdx_transit_congestion = TDXDataIngestionAdapter.fetch_transit_congestion_index()
         snapshot.japan_resas_inbound_index = JapanKoreaDXIngestionAdapter.fetch_japan_resas_inbound_index()
         snapshot.kyoto_congestion_ai_score = JapanKoreaDXIngestionAdapter.fetch_kyoto_congestion_ai_score()
@@ -750,31 +601,25 @@ class GEMv1100MasterOrchestrator:
 
         v16s = snapshot.extract_v16s()
 
-        # 3. 坎離相變算子評估
         phase_triggered, forced_tactic, phase_meta = KanLiPhaseOperator.evaluate_phase_transition(snapshot)
         selected_tactic = forced_tactic if (phase_triggered and forced_tactic) else "Rule_03_Danlan_Ebike_Diverting"
 
-        # 4. 因果最優傳輸效果與 RL 自主訓練
         dr_cate_effect = float(max(0.20, (0.40 * v16s[2] + 0.20 * v16s[6] + 0.20 * v16s[10] + 0.20 * v16s[15]) + 0.35))
         shaped_reward = self.rl_trainer.compute_shaped_reward(v16s, dr_cate_effect)
         rl_training_meta = self.rl_trainer.self_train_step(v16s, shaped_reward)
 
-        # 5. Sherman-Morrison 矩陣更新與自癒
         cond_num, matrix_status = self.linucb_engine.update_sherman_morrison(selected_tactic, v16s, shaped_reward)
         self.step_counter += 1
 
-        # 6. 生成 Level-3 反漂綠 zk-SNARKs 零知識證明
         zk_proof = self.zk_agent.generate_zk_snark_proof(
             step=self.step_counter, tactic=selected_tactic, co2_reduction_kg=snapshot.ebike_saved_co2_kg,
             gts_stores=snapshot.gts_certified_stores, pass_rate=snapshot.taiwan_pass_redemption_rate
         )
 
-        # 7. 計算國家級 MCDM 自評過件總分
         final_score, national_audit_meta = DynamicMCDMEvaluatorV1100.evaluate_national_audit_score(
             snapshot, selected_tactic, dr_cate_effect, shaped_reward
         )
 
-        # 8. Gemini 戰略導言與 Mesh 溢流計算
         llm_narrative = await self.synthesizer.generate_strategic_narrative(snapshot, selected_tactic, phase_meta["reason"], skip_llm=skip_llm)
         mesh_res = self.mesh_manager.calculate_spillover_matrix(snapshot)
 
@@ -802,13 +647,12 @@ class GEMv1100MasterOrchestrator:
             "national_audit_evaluation": national_audit_meta,
         }
 
-        # 9. 直寫推送至 Notion DB Hub
         self.notion_hub.push_to_notion(result_payload)
         return result_payload
 
 
 # ==============================================================================
-# 13. 驗證執行主函式 (相容 CLI 與 GitHub Actions/標準 Python)
+# 13. 驗證執行主函式
 # ==============================================================================
 async def main():
     logger.info("========================================================================")
@@ -827,22 +671,19 @@ async def main():
         taiwan_pass_redemption_rate=0.91,
     )
 
-    # 1. 執行核心推演
     result = await orchestrator.execute_v1100_master_cycle(extreme_tensor, skip_llm=False)
 
-    # 2. 將數據寫入 JSON 本地快照供 API 端點讀取
     with open("gem_v1100_output.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False, cls=NumpyJSONEncoder)
 
-    print(json.dumps(result, indent=2, ensure_ascii=False, cls=NumpyJSONEncoder))
-
     logger.info("========================================================================")
-    logger.info("✅ GEM Engine v1100.0 超智腦運作完成！結果已輸出至 gem_v1100_output.json 並同步 Notion DB Hub！")
+    logger.info("✅ GEM Engine v1100.0 超智腦運作完成！結果已輸出至 gem_v1100_output.json 與 Notion DB Hub！")
     logger.info("========================================================================")
 
 
-# ==============================================================================
-# 14. 標準 Python 入口點
-# ==============================================================================
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(main())
+    except RuntimeError:
+        asyncio.run(main())
